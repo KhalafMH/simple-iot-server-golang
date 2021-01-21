@@ -6,14 +6,33 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 )
 
 func main() {
-	readings := make([]models.Reading, 0, 10)
+	readings := make(models.ReadingSlice, 0, 10)
 	http.HandleFunc("/sensor-readings", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case "GET":
-			b, err := json.Marshal(readings)
+			var resultReadings *models.ReadingSlice
+			sinceQuery := r.URL.Query().Get("since")
+			if sinceQuery != "" {
+				since, err := time.Parse(time.RFC3339, sinceQuery)
+				if err != nil {
+					w.WriteHeader(400)
+					return
+				}
+				resultReadings = readings.Filter(func(reading models.Reading) bool {
+					if reading.Timestamp.After(since) || reading.Timestamp.Equal(since) {
+						return true
+					} else {
+						return false
+					}
+				})
+			} else {
+				resultReadings = &readings
+			}
+			b, err := json.Marshal(resultReadings)
 			if err != nil {
 				log.Printf("Error: %v\n", err)
 				return
